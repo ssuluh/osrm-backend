@@ -1,0 +1,45 @@
+# escape=`
+
+# Use the latest Windows Server Core image with .NET Framework 4.8.
+FROM mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2019 as base
+
+# Restore the default Windows shell for correct batch processing.
+SHELL ["cmd", "/S", "/C"]
+
+# Copy our Install script.
+COPY Install.cmd C:\TEMP\
+
+# Download collect.exe in case of an install failure.
+ADD https://aka.ms/vscollect.exe C:\TEMP\collect.exe
+
+RUN `
+    # Download the Build Tools bootstrapper.
+    curl -SL --output vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtools.exe `
+    `
+    # Install Build Tools with the Microsoft.VisualStudio.Workload.AzureBuildTools workload, excluding workloads and components with known issues.
+    && (start /w c:\temp\isntallo.cmd vs_buildtools.exe --quiet --wait --norestart --nocache`
+    --installPath "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools" `
+    --add Microsoft.VisualStudio.Workload.MSBuildTools;includeRecommended;includeOptional `
+    --add Microsoft.VisualStudio.Workload.VCTools;includeRecommended;includeOptional `
+    --add Microsoft.VisualStudio.ComponentGroup.VC.Tools.142.x86.x64 `
+    --add Microsoft.VisualStudio.Component.VC.14.29.16.11.x86.x64)
+
+# || IF "%ERRORLEVEL%"=="3010" EXIT 0) `
+# Cleanup
+# && del /q vs_buildtools.exe
+# Define the entry point for the docker container.
+# This entry point starts the developer command prompt and launches the PowerShell shell.
+# ENTRYPOINT ["C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\VsDevCmd.bat", "&&", "powershell.exe", "-NoLogo", "-ExecutionPolicy", "Bypass"]
+# base layer above is based of https://docs.microsoft.com/en-us/visualstudio/install/build-tools-container?view=vs-2022
+ENTRYPOINT ["C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\Tools\\VsDevCmd.bat", "&&", "powershell.exe", "-NoLogo", "-ExecutionPolicy", "Bypass"]
+FROM base as buildfinal
+
+# install chocolatey
+#RUN @"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin
+#RUN choco install -y 7zip git
+
+WORKDIR /osrm-backend
+COPY ./build-local.bat .
+COPY ./appveyor-build.bat .
+COPY ./src ./src
+
