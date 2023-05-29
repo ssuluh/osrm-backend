@@ -1,2 +1,7 @@
-test
-build
+.git/
+.github/
+build/
+cloudformation/
+docker/
+docs/
+example/
